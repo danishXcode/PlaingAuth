@@ -15,6 +15,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using plainAuth.Context;
 using plainAuth.models;
+using plainAuth.models.UMC;
 
 namespace plainAuth.Controllers
 {
@@ -26,26 +27,26 @@ namespace plainAuth.Controllers
         private IConfiguration _configutation;
         private readonly UserManager<UserModel> _userManager;
         private readonly ApplicationDbContext _appDbContext;
+        private readonly RoleManager<IdentityRole> _roleManager;
 
         public UserController(IConfiguration configuration, 
             UserManager<UserModel> userManager,
-            ApplicationDbContext application
+            ApplicationDbContext application,
+            RoleManager<IdentityRole> roleManager
             )
         {
             _configutation = configuration;
             _userManager = userManager;
             _appDbContext = application;
+            _roleManager = roleManager;
         }
 
         [HttpGet("login")]
         public async Task<IActionResult> loginAsync(string uname,string pwd)
         {
             UserModel userModel = new UserModel();
-            userModel.FullName = uname;
             userModel.UserName = uname;
-            userModel.expass = pwd;
-
-
+            userModel.Password = pwd;
             IActionResult result = Unauthorized();
 
             var user = await Authuser(userModel);
@@ -58,18 +59,28 @@ namespace plainAuth.Controllers
             return result;
         }
 
-        private string GenrateJSonWEbToken(UserModel user)
+        private async Task<string> GenrateJSonWEbToken(UserModel user)
         {
             var secutiykey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configutation["Jwt:Key"]));
 
             var credentials = new SigningCredentials(secutiykey, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+
+            var claims =new List<Claim>()
             {
-            new Claim(JwtRegisteredClaimNames.Sub,user.FullName),
+            new Claim(JwtRegisteredClaimNames.Sub,user.UserName),
             new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString()),
-            new Claim(ClaimTypes.Role,"admin")
+
             };
+
+             var user1 = await _userManager.FindByNameAsync(user.UserName);
+            // Get the roles for the user
+            var roles = await  _userManager.GetRolesAsync(user1);
+            foreach (var item in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, item));
+            }
+
 
 
             var tokenstr = new JwtSecurityToken(
@@ -85,7 +96,7 @@ namespace plainAuth.Controllers
 
         private async Task<UserModel> Authuser(UserModel userModel)
         {
-            if (!string.IsNullOrEmpty(userModel.UserName) && !string.IsNullOrEmpty(userModel.expass))
+            if (!string.IsNullOrEmpty(userModel.UserName) && !string.IsNullOrEmpty(userModel.Password))
             {
                 // get the user to verifty
                 var userToVerify = await _userManager.FindByNameAsync(userModel.UserName);
@@ -93,7 +104,7 @@ namespace plainAuth.Controllers
                 if (userToVerify != null)
                 {
                     // check the credentials  
-                    if (await _userManager.CheckPasswordAsync(userToVerify, userModel.expass))
+                    if (await _userManager.CheckPasswordAsync(userToVerify, userModel.Password))
                     {
                         return userModel;
                     }
@@ -103,7 +114,7 @@ namespace plainAuth.Controllers
             // Credentials are invalid, or account doesn't exist
             return null;
         }
-        [Authorize(Roles ="admin")]
+        [Authorize(Roles = "Admin")]
         [HttpPost("post")]
         public string post()
         {
@@ -115,31 +126,65 @@ namespace plainAuth.Controllers
 
         [Authorize]
         [HttpGet("getvalue")]
-        [Authorize(Roles = "user")]
+        [Authorize(Roles = "User")]
         public ActionResult<IEnumerable<string>> get()
         {
             return new string[] { "v1", "v2" };
         }
 
 
-        [HttpPost("register")]
+        [HttpPost("RegisterTenant")]
         public async Task<IActionResult> RegisterAsync(UserModel model)
         {
-
+            bool adminRoleExists = await _roleManager.RoleExistsAsync("Admin");
+            if (!adminRoleExists)
+            {
+               await _roleManager.CreateAsync(new IdentityRole("Admin"));
+            }
+            var result = await _userManager.CreateAsync(model, model.Password);
             
 
-             var result = await _userManager.CreateAsync(model, model.expass);
+            model.tenant = new Tenant()
+            {
+                TenantName = model.FullName
+            };
+
+            if (!result.Succeeded) return new BadRequestObjectResult(Errors.AddErrorsToModelState(result, ModelState));
+           
+            await _appDbContext.SaveChangesAsync();
+            var roleadded = await _userManager.AddToRoleAsync(model, "Admin");
+            await _appDbContext.SaveChangesAsync();
+
+            return new OkResult();
+        }
+
+        [HttpPost("RegisterUser")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> RegisteUserAsync(UserModelRole model)
+        {
+            bool adminRoleExists = await _roleManager.RoleExistsAsync(model.Role);
+            if (!adminRoleExists)
+            {
+                await _roleManager.CreateAsync(new IdentityRole(model.Role));
+            }
+
+            var idn = HttpContext.User.Identity as ClaimsIdentity;
+            IList<Claim> claims = idn.Claims.ToList();
+
+            model.tenant = new Tenant()
+            {
+                TenantName = model.FullName
+            };
+
+            var result = await _userManager.CreateAsync(model, model.Password);
+            await _userManager.AddToRoleAsync(model, model.Role);
 
             if (!result.Succeeded) return new BadRequestObjectResult(Errors.AddErrorsToModelState(result, ModelState));
 
             await _appDbContext.SaveChangesAsync();
 
             return new OkResult();
-
-
-
         }
-
 
     }
 }

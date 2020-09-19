@@ -149,6 +149,44 @@ namespace plainAuth.Migrations
                     b.ToTable("AspNetUserTokens");
                 });
 
+            modelBuilder.Entity("plainAuth.models.UMC.Address", b =>
+                {
+                    b.Property<int>("AddressID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+
+                    b.Property<string>("PinCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PrimaryAddress")
+                        .HasColumnType("text");
+
+                    b.HasKey("AddressID");
+
+                    b.ToTable("Address");
+                });
+
+            modelBuilder.Entity("plainAuth.models.UMC.Tenant", b =>
+                {
+                    b.Property<int>("TenantID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+
+                    b.Property<int?>("AddressID")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TenantName")
+                        .HasColumnType("text");
+
+                    b.HasKey("TenantID");
+
+                    b.HasIndex("AddressID");
+
+                    b.ToTable("Tenant");
+                });
+
             modelBuilder.Entity("plainAuth.models.UserModel", b =>
                 {
                     b.Property<string>("Id")
@@ -180,9 +218,6 @@ namespace plainAuth.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("MyID")
-                        .HasColumnType("text");
-
                     b.Property<string>("NormalizedEmail")
                         .HasColumnType("character varying(256)")
                         .HasMaxLength(256);
@@ -190,6 +225,9 @@ namespace plainAuth.Migrations
                     b.Property<string>("NormalizedUserName")
                         .HasColumnType("character varying(256)")
                         .HasMaxLength(256);
+
+                    b.Property<string>("Password")
+                        .HasColumnType("text");
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
@@ -203,15 +241,15 @@ namespace plainAuth.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
+                    b.Property<int?>("TenantID")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
                     b.Property<string>("UserName")
                         .HasColumnType("character varying(256)")
                         .HasMaxLength(256);
-
-                    b.Property<string>("expass")
-                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -221,6 +259,8 @@ namespace plainAuth.Migrations
                     b.HasIndex("NormalizedUserName")
                         .IsUnique()
                         .HasName("UserNameIndex");
+
+                    b.HasIndex("TenantID");
 
                     b.ToTable("AspNetUsers");
                 });
@@ -274,6 +314,20 @@ namespace plainAuth.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("plainAuth.models.UMC.Tenant", b =>
+                {
+                    b.HasOne("plainAuth.models.UMC.Address", "Address")
+                        .WithMany()
+                        .HasForeignKey("AddressID");
+                });
+
+            modelBuilder.Entity("plainAuth.models.UserModel", b =>
+                {
+                    b.HasOne("plainAuth.models.UMC.Tenant", "tenant")
+                        .WithMany("userModels")
+                        .HasForeignKey("TenantID");
                 });
 #pragma warning restore 612, 618
         }

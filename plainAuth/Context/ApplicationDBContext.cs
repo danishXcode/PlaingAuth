@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using plainAuth.models;
+using plainAuth.models.UMC;
 using System;
 using System.Collections.Generic;
 using System.Linq;
